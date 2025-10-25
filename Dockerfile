@@ -9,5 +9,5 @@ COPY src/ /app/
 
 ENV PYTHONUNBUFFERED=1
 
-# Default to runner; override for prepare/baseline
-ENTRYPOINT ["python", "/app/runner.py"]
+# Default to adaptive runner; override for other modes
+ENTRYPOINT ["python", "/app/runner_adaptive.py"]

@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # Adaptive query runner (default)
+  runner-adaptive:
+    build: .
+    image: applovin-engine:latest
+    volumes:
+      - ./data:/data
+      - ./queries:/queries
+    command: >
+      --lake /data/lake
+      --mvs /data/mvs
+      --queries /queries/examples
+      --out /data/outputs
+      --threads 4
+      --mem 4GB
+      --analyze
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  # Original runner (for comparison)
+  runner-original:
+    build: .
+    image: applovin-engine:latest
+    volumes:
+      - ./data:/data
+      - ./queries:/queries
+    entrypoint: ["python", "/app/runner.py"]
+    command: >
+      --lake /data/lake
+      --mvs /data/mvs
+      --queries /queries/examples
+      --out /data/outputs
+      --threads 4
+      --mem 4GB
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  # Prepare data (build lake + MVs)
+  prepare:
+    build: .
+    image: applovin-engine:latest
+    volumes:
+      - ./data:/data
+    entrypoint: ["python", "/app/prepare.py"]
+    command: >
+      --raw /data/raw
+      --lake /data/lake
+      --mvs /data/mvs
+      --threads 4
+      --mem 8GB
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  # Add wider MVs only
+  prepare-wider:
+    build: .
+    image: applovin-engine:latest
+    volumes:
+      - ./data:/data
+    entrypoint: ["python", "/app/prepare_wider_mvs_only.py"]
+    command: >
+      --lake /data/lake
+      --mvs /data/mvs
+      --threads 4
+      --mem 6GB
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  # Baseline runner (no MVs)
+  baseline:
+    build: .
+    image: applovin-engine:latest
+    volumes:
+      - ./data:/data
+      - ./queries:/queries
+    entrypoint: ["python", "/app/baseline_main.py"]
+    command: >
+      --data-dir /data/lake
+      --out-dir /data/outputs/baseline
+      --queries /queries/examples
+      --mode lake
+    environment:
+      - PYTHONUNBUFFERED=1

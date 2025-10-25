@@ -74,11 +74,13 @@ TO '{lake}/apps_dim.parquet'
 
 
 def build_rollups(con, lake, mvs):
-    """Build all materialized view rollups."""
+    """Build all materialized view rollups (original + wider MVs)."""
     print("[prepare] Building materialized views...")
     
+    # ========== ORIGINAL NARROW MVs (5) ==========
+    
     # MV 1: Daily revenue from impressions
-    print("  [1/5] mv_day_impr_revenue")
+    print("  [1/8] mv_day_impr_revenue")
     con.execute(f"""
     CREATE OR REPLACE TABLE mv_day_impr_revenue AS
     SELECT day, SUM(bid_price) AS sum_bid, COUNT(*) AS events
@@ -93,7 +95,7 @@ def build_rollups(con, lake, mvs):
     """)
 
     # MV 2: Publisher revenue in country/day (impressions)
-    print("  [2/5] mv_day_country_publisher_impr")
+    print("  [2/8] mv_day_country_publisher_impr")
     con.execute(f"""
     CREATE OR REPLACE TABLE mv_day_country_publisher_impr AS
     SELECT day, country, publisher_id, SUM(bid_price) AS sum_bid, COUNT(*) AS events
@@ -108,7 +110,7 @@ def build_rollups(con, lake, mvs):
     """)
 
     # MV 3: Average purchase by country (all time)
-    print("  [3/5] mv_country_purchase_avg")
+    print("  [3/8] mv_country_purchase_avg")
     con.execute(f"""
     CREATE OR REPLACE TABLE mv_country_purchase_avg AS
     SELECT country,
@@ -125,7 +127,7 @@ def build_rollups(con, lake, mvs):
     """)
 
     # MV 4: Events per advertiser per type (all time)
-    print("  [4/5] mv_adv_type_counts")
+    print("  [4/8] mv_adv_type_counts")
     con.execute(f"""
     CREATE OR REPLACE TABLE mv_adv_type_counts AS
     SELECT advertiser_id, type, COUNT(*) AS n
@@ -139,7 +141,7 @@ def build_rollups(con, lake, mvs):
     """)
 
     # MV 5: Minute grain spend on a given day (impressions)
-    print("  [5/5] mv_day_minute_impr")
+    print("  [5/8] mv_day_minute_impr")
     con.execute(f"""
     CREATE OR REPLACE TABLE mv_day_minute_impr AS
     SELECT day, minute, SUM(bid_price) AS sum_bid, COUNT(*) AS events
@@ -151,6 +153,77 @@ def build_rollups(con, lake, mvs):
     COPY (SELECT * FROM mv_day_minute_impr)
     TO '{mvs}/mv_day_minute_impr'
     (FORMAT PARQUET, PARTITION_BY (day), COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE);
+    """)
+
+    # ========== WIDER MVs FOR FLEXIBLE AGGREGATION (3) ==========
+    
+    # MV 6: Wide MV - Hourly revenue by country + publisher + advertiser (impressions)
+    # Supports queries asking for any subset: hourly/daily, by country, by publisher, by advertiser
+    print("  [6/8] mv_hour_country_pub_adv_impr (wide MV)")
+    con.execute(f"""
+    CREATE OR REPLACE TABLE mv_hour_country_pub_adv_impr AS
+    SELECT 
+        hour,
+        day,
+        country,
+        publisher_id,
+        advertiser_id,
+        SUM(bid_price) AS sum_bid,
+        COUNT(*) AS events
+    FROM read_parquet('{lake}/events/day=*/**/*.parquet')
+    WHERE type='impression'
+    GROUP BY ALL;
+    """)
+    con.execute(f"""
+    COPY (SELECT * FROM mv_hour_country_pub_adv_impr)
+    TO '{mvs}/mv_hour_country_pub_adv_impr'
+    (FORMAT PARQUET, PARTITION_BY (day), COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE);
+    """)
+    
+    # MV 7: Wide MV - Daily events by country + type + advertiser (all events)
+    # Supports queries asking for event counts across different dimensions
+    print("  [7/8] mv_day_country_type_adv (wide MV)")
+    con.execute(f"""
+    CREATE OR REPLACE TABLE mv_day_country_type_adv AS
+    SELECT 
+        day,
+        country,
+        type,
+        advertiser_id,
+        publisher_id,
+        COUNT(*) AS events,
+        SUM(bid_price) AS sum_bid,
+        SUM(total_price) AS sum_total
+    FROM read_parquet('{lake}/events/day=*/**/*.parquet')
+    GROUP BY ALL;
+    """)
+    con.execute(f"""
+    COPY (SELECT * FROM mv_day_country_type_adv)
+    TO '{mvs}/mv_day_country_type_adv'
+    (FORMAT PARQUET, PARTITION_BY (day), COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE);
+    """)
+    
+    # MV 8: Wide MV - Weekly aggregates by advertiser + country (all event types)
+    # Supports weekly/monthly rollups and advertiser analysis
+    print("  [8/8] mv_week_adv_country_type (wide MV)")
+    con.execute(f"""
+    CREATE OR REPLACE TABLE mv_week_adv_country_type AS
+    SELECT 
+        week,
+        advertiser_id,
+        country,
+        type,
+        COUNT(*) AS events,
+        SUM(bid_price) AS sum_bid,
+        SUM(total_price) AS sum_total,
+        COUNT(DISTINCT user_id) AS unique_users
+    FROM read_parquet('{lake}/events/day=*/**/*.parquet')
+    GROUP BY ALL;
+    """)
+    con.execute(f"""
+    COPY (SELECT * FROM mv_week_adv_country_type)
+    TO '{mvs}/mv_week_adv_country_type'
+    (FORMAT PARQUET, PARTITION_BY (week), COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE);
     """)
 
 
@@ -169,9 +242,12 @@ def main():
     con = duckdb.connect(database=":memory:")
     con.execute(f"PRAGMA threads={args.threads};")
     con.execute(f"SET memory_limit='{args.mem}';")
-    # Increase temp directory size for large datasets
+    # Use /tmp for temporary files (usually has more space)
+    import tempfile
+    temp_dir = tempfile.gettempdir()
+    print(f"[prepare] Using temp directory: {temp_dir}")
     con.execute("PRAGMA max_temp_directory_size='50GiB';")
-    con.execute(f"PRAGMA temp_directory='{Path(args.lake).absolute()}/.ducktmp';")
+    con.execute(f"PRAGMA temp_directory='{temp_dir}/duckdb_tmp';")
 
     print(f"[prepare] Loading events from {args.raw}/events_part_*.csv")
     con.execute(DDL.format(raw=args.raw))
@@ -190,7 +266,8 @@ def main():
     # Analyze tables (best-effort)
     print("[prepare] Analyzing tables...")
     for t in ["events", "mv_day_impr_revenue", "mv_day_country_publisher_impr",
-              "mv_country_purchase_avg", "mv_adv_type_counts", "mv_day_minute_impr"]:
+              "mv_country_purchase_avg", "mv_adv_type_counts", "mv_day_minute_impr",
+              "mv_hour_country_pub_adv_impr", "mv_day_country_type_adv", "mv_week_adv_country_type"]:
         try:
             con.execute(f"ANALYZE {t};")
         except duckdb.Error:
