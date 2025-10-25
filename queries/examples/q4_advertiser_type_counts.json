@@ -1,0 +1,10 @@
+{
+  "from": "events",
+  "select": [
+    "advertiser_id",
+    "type",
+    {"COUNT": "*"}
+  ],
+  "where": [],
+  "group_by": ["advertiser_id", "type"]
+}

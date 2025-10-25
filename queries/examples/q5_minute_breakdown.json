@@ -1,0 +1,12 @@
+{
+  "from": "events",
+  "select": [
+    "minute",
+    {"SUM": "bid_price"}
+  ],
+  "where": [
+    {"col": "type", "op": "eq", "val": "impression"},
+    {"col": "day", "op": "eq", "val": "2025-01-15"}
+  ],
+  "group_by": ["minute"]
+}

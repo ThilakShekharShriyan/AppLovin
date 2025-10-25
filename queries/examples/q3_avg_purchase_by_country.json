@@ -1,0 +1,11 @@
+{
+  "from": "events",
+  "select": [
+    "country",
+    {"AVG": "total_price"}
+  ],
+  "where": [
+    {"col": "type", "op": "eq", "val": "purchase"}
+  ],
+  "group_by": ["country"]
+}
