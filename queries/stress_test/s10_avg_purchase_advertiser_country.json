@@ -1,0 +1,6 @@
+{
+  "from": "events",
+  "select": ["advertiser_id", "country", {"AVG": "total_price"}],
+  "where": [{"col": "type", "op": "eq", "val": "purchase"}],
+  "group_by": ["advertiser_id", "country"]
+}

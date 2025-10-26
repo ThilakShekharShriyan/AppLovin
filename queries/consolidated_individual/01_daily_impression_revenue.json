@@ -1,0 +1,27 @@
+{
+  "from": "events",
+  "select": [
+    "day",
+    {
+      "SUM": "bid_price",
+      "as": "total_revenue"
+    }
+  ],
+  "where": [
+    {
+      "col": "type",
+      "op": "eq",
+      "val": "impression"
+    }
+  ],
+  "group_by": [
+    "day"
+  ],
+  "order_by": [
+    {
+      "col": "day",
+      "dir": "asc"
+    }
+  ],
+  "limit": 10
+}

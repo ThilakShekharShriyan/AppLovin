@@ -1,0 +1,86 @@
+{
+  "validation_summary": {
+    "timestamp": 1761448546.610003,
+    "total_mvs": 5,
+    "healthy_mvs": 5,
+    "stale_mvs": 0,
+    "error_mvs": 0,
+    "health_rate": 100.0,
+    "total_records": 1219891
+  },
+  "mv_details": [
+    {
+      "mv_name": "mv_all_adv_type_counts",
+      "status": "HEALTHY",
+      "record_count": 6616,
+      "base_comparison": {
+        "mv_count": 6616,
+        "validation_passed": true
+      },
+      "freshness_check": {
+        "status": "Current"
+      },
+      "details": "MV has 6,616 advertiser-type combinations, validated against base data"
+    },
+    {
+      "mv_name": "mv_day_advertiser_id_wide",
+      "status": "HEALTHY",
+      "record_count": 603715,
+      "base_comparison": {
+        "mv_count": 603715,
+        "validation_passed": true
+      },
+      "freshness_check": {
+        "status": "Current"
+      },
+      "details": "MV has 603,715 daily advertiser records, validated against base data"
+    },
+    {
+      "mv_name": "mv_day_country_wide",
+      "status": "HEALTHY",
+      "record_count": 4383,
+      "base_comparison": {
+        "mv_count": 4383,
+        "validation_passed": true
+      },
+      "freshness_check": {
+        "status": "Current"
+      },
+      "details": "MV has 4,383 daily country records, validated against base data"
+    },
+    {
+      "mv_name": "mv_day_type_wide",
+      "status": "HEALTHY",
+      "record_count": 1462,
+      "base_comparison": {
+        "mv_count": 1462,
+        "validation_passed": true
+      },
+      "freshness_check": {
+        "status": "Current"
+      },
+      "details": "MV has 1,462 daily type records, validated against base data"
+    },
+    {
+      "mv_name": "mv_hour_advertiser_id_wide",
+      "status": "HEALTHY",
+      "record_count": 603715,
+      "base_comparison": {
+        "mv_count": 603715,
+        "validation_passed": true
+      },
+      "freshness_check": {
+        "status": "Current"
+      },
+      "details": "MV has 603,715 hourly advertiser records, validated against base data"
+    }
+  ],
+  "stale_mv_list": [],
+  "error_mv_list": [],
+  "recommendations": [
+    "All MVs are healthy - ready for production queries",
+    "Update query router to use rebuilt materialized views",
+    "Set up monitoring for ongoing MV health checks",
+    "Consider automated refresh pipeline for incremental updates"
+  ]
+}

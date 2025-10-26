@@ -1,0 +1,10 @@
+{
+  "from": "events",
+  "select": ["day", {"COUNT": "*"}],
+  "where": [
+    {"col": "type", "op": "eq", "val": "impression"},
+    {"col": "day", "op": "between", "val": ["2024-07-01", "2024-07-07"]}
+  ],
+  "group_by": ["day"],
+  "order_by": [{"col": "COUNT(*)", "dir": "desc"}]
+}

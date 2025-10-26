@@ -1,0 +1,44 @@
+{
+  "from": "events",
+  "select": [
+    "advertiser_id",
+    {
+      "SUM": "total_price",
+      "as": "purchase_revenue"
+    },
+    {
+      "COUNT": "*",
+      "as": "events"
+    }
+  ],
+  "where": [
+    {
+      "col": "country",
+      "op": "eq",
+      "val": "US"
+    },
+    {
+      "col": "day",
+      "op": "between",
+      "val": [
+        "2024-10-01",
+        "2024-12-31"
+      ]
+    },
+    {
+      "col": "type",
+      "op": "eq",
+      "val": "purchase"
+    }
+  ],
+  "group_by": [
+    "advertiser_id"
+  ],
+  "order_by": [
+    {
+      "col": "purchase_revenue",
+      "dir": "desc"
+    }
+  ],
+  "limit": 10
+}

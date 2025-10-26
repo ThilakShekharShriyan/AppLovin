@@ -1,0 +1,51 @@
+{
+  "benchmark_summary": {
+    "total_queries": 8,
+    "total_time_ms": 229.6,
+    "average_time_ms": 28.7,
+    "total_rows_returned": 24375,
+    "queries_per_second": 34.8
+  },
+  "routing_distribution": {
+    "mv_realtime": 4,
+    "partition_scan": 3,
+    "index_scan": 1
+  },
+  "performance_by_type": {
+    "simple_aggregation": {
+      "avg_time_ms": 57.9,
+      "min_time_ms": 2.5,
+      "max_time_ms": 124.1,
+      "query_count": 3
+    },
+    "time_series_aggregation": {
+      "avg_time_ms": 9.0,
+      "min_time_ms": 3.8,
+      "max_time_ms": 14.3,
+      "query_count": 2
+    },
+    "funnel_analysis": {
+      "avg_time_ms": 11.9,
+      "min_time_ms": 11.9,
+      "max_time_ms": 11.9,
+      "query_count": 1
+    },
+    "analytical_query": {
+      "avg_time_ms": 13.0,
+      "min_time_ms": 7.5,
+      "max_time_ms": 18.5,
+      "query_count": 2
+    }
+  },
+  "cost_model_accuracy": {
+    "avg_accuracy": 2.82,
+    "median_accuracy": 0.82,
+    "accuracy_range": "0.05x - 8.56x"
+  },
+  "optimization_impact": {
+    "estimated_speedup": "69.7x",
+    "mv_hit_rate": "50.0%",
+    "time_saved_seconds": 15.8,
+    "efficiency_gain": "98.6%"
+  }
+}

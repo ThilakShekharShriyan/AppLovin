@@ -1,0 +1,29 @@
+{
+  "from": "events",
+  "select": [
+    "country",
+    "day",
+    {
+      "SUM": "bid_price",
+      "as": "revenue"
+    }
+  ],
+  "where": [
+    {
+      "col": "type",
+      "op": "eq",
+      "val": "impression"
+    }
+  ],
+  "group_by": [
+    "country",
+    "day"
+  ],
+  "order_by": [
+    {
+      "col": "revenue",
+      "dir": "desc"
+    }
+  ],
+  "limit": 20
+}

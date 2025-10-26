@@ -1,0 +1,9 @@
+{
+  "from": "events",
+  "select": ["country", {"COUNT": "*"}],
+  "where": [
+    {"col": "country", "op": "eq", "val": "NONEXISTENT"},
+    {"col": "type", "op": "eq", "val": "purchase"}
+  ],
+  "group_by": ["country"]
+}

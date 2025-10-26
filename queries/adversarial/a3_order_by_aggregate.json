@@ -1,0 +1,7 @@
+{
+  "from": "events",
+  "select": ["publisher_id", {"SUM": "total_price"}],
+  "where": [{"col": "type", "op": "eq", "val": "impression"}],
+  "group_by": ["publisher_id"],
+  "order_by": [{"col": "SUM(total_price)", "dir": "desc"}]
+}

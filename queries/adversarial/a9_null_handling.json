@@ -1,0 +1,10 @@
+{
+  "from": "events",
+  "select": ["country", {"COUNT": "*"}, {"AVG": "total_price"}],
+  "where": [
+    {"col": "total_price", "op": "gt", "val": 0},
+    {"col": "advertiser_id", "op": "is_not_null"}
+  ],
+  "group_by": ["country"],
+  "order_by": [{"col": "country", "dir": "asc"}]
+}

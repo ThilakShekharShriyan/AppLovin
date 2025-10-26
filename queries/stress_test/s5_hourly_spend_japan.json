@@ -1,0 +1,11 @@
+{
+  "from": "events",
+  "select": ["hour", {"SUM": "bid_price"}],
+  "where": [
+    {"col": "type", "op": "eq", "val": "impression"},
+    {"col": "country", "op": "eq", "val": "JP"},
+    {"col": "day", "op": "eq", "val": "2024-11-11"}
+  ],
+  "group_by": ["hour"],
+  "order_by": [{"col": "hour", "dir": "asc"}]
+}

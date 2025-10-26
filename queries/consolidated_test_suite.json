@@ -1,0 +1,244 @@
+[
+  {
+    "name": "daily_impression_revenue",
+    "category": "basic_aggregation",
+    "query": {
+      "from": "events",
+      "select": ["day", {"SUM": "bid_price", "as": "total_revenue"}],
+      "where": [{"col": "type", "op": "eq", "val": "impression"}],
+      "group_by": ["day"],
+      "order_by": [{"col": "day", "dir": "asc"}],
+      "limit": 10
+    }
+  },
+  {
+    "name": "revenue_by_country_day",
+    "category": "multi_dimension",
+    "query": {
+      "from": "events",
+      "select": ["country", "day", {"SUM": "bid_price", "as": "revenue"}],
+      "where": [{"col": "type", "op": "eq", "val": "impression"}],
+      "group_by": ["country", "day"],
+      "order_by": [{"col": "revenue", "dir": "desc"}],
+      "limit": 20
+    }
+  },
+  {
+    "name": "ctr_per_advertiser",
+    "category": "performance",
+    "query": {
+      "from": "events",
+      "select": [
+        "advertiser_id", 
+        {"COUNT": "*", "as": "total_events"},
+        {"SUM": "bid_price", "as": "total_spend"}
+      ],
+      "where": [{"col": "type", "op": "in", "val": ["click", "impression"]}],
+      "group_by": ["advertiser_id"],
+      "order_by": [{"col": "total_events", "dir": "desc"}],
+      "limit": 15
+    }
+  },
+  {
+    "name": "top_advertisers_us_q4",
+    "category": "time_geo_filter",
+    "query": {
+      "from": "events",
+      "select": [
+        "advertiser_id",
+        {"SUM": "total_price", "as": "purchase_revenue"},
+        {"COUNT": "*", "as": "events"}
+      ],
+      "where": [
+        {"col": "country", "op": "eq", "val": "US"},
+        {"col": "day", "op": "between", "val": ["2024-10-01", "2024-12-31"]},
+        {"col": "type", "op": "eq", "val": "purchase"}
+      ],
+      "group_by": ["advertiser_id"],
+      "order_by": [{"col": "purchase_revenue", "dir": "desc"}],
+      "limit": 10
+    }
+  },
+  {
+    "name": "avg_purchase_by_country",
+    "category": "aggregation",
+    "query": {
+      "from": "events",
+      "select": [
+        "country", 
+        {"AVG": "total_price", "as": "avg_purchase_value"},
+        {"COUNT": "*", "as": "purchase_count"}
+      ],
+      "where": [{"col": "type", "op": "eq", "val": "purchase"}],
+      "group_by": ["country"],
+      "order_by": [{"col": "avg_purchase_value", "dir": "desc"}],
+      "limit": 25
+    }
+  },
+  {
+    "name": "hourly_spend_japan",
+    "category": "time_granular",
+    "query": {
+      "from": "events",
+      "select": [
+        "hour",
+        {"SUM": "bid_price", "as": "hourly_spend"},
+        {"COUNT": "*", "as": "event_count"}
+      ],
+      "where": [
+        {"col": "country", "op": "eq", "val": "JP"},
+        {"col": "day", "op": "between", "val": ["2024-06-01", "2024-06-30"]}
+      ],
+      "group_by": ["hour"],
+      "order_by": [{"col": "hourly_spend", "dir": "desc"}]
+    }
+  },
+  {
+    "name": "impressions_per_country",
+    "category": "simple_count",
+    "query": {
+      "from": "events",
+      "select": [
+        "country",
+        {"COUNT": "*", "as": "impression_count"}
+      ],
+      "where": [{"col": "type", "op": "eq", "val": "impression"}],
+      "group_by": ["country"],
+      "order_by": [{"col": "impression_count", "dir": "desc"}]
+    }
+  },
+  {
+    "name": "advertiser_publisher_matrix",
+    "category": "high_cardinality",
+    "query": {
+      "from": "events",
+      "select": [
+        "advertiser_id",
+        "publisher_id",
+        {"SUM": "bid_price", "as": "total_bid"},
+        {"COUNT": "*", "as": "event_count"}
+      ],
+      "where": [{"col": "type", "op": "neq", "val": "serve"}],
+      "group_by": ["advertiser_id", "publisher_id"],
+      "order_by": [{"col": "total_bid", "dir": "desc"}],
+      "limit": 50
+    }
+  },
+  {
+    "name": "purchase_revenue_eu",
+    "category": "multi_country",
+    "query": {
+      "from": "events",
+      "select": [
+        "country",
+        "day",
+        {"SUM": "total_price", "as": "purchase_revenue"}
+      ],
+      "where": [
+        {"col": "country", "op": "in", "val": ["DE", "FR", "ES", "IT"]},
+        {"col": "type", "op": "eq", "val": "purchase"}
+      ],
+      "group_by": ["country", "day"],
+      "order_by": [{"col": "purchase_revenue", "dir": "desc"}],
+      "limit": 30
+    }
+  },
+  {
+    "name": "high_traffic_days",
+    "category": "temporal_analysis",
+    "query": {
+      "from": "events",
+      "select": [
+        "day",
+        {"COUNT": "*", "as": "total_events"},
+        {"COUNT": "DISTINCT user_id", "as": "unique_users"}
+      ],
+      "where": [{"col": "type", "op": "neq", "val": "serve"}],
+      "group_by": ["day"],
+      "order_by": [{"col": "total_events", "dir": "desc"}],
+      "limit": 10
+    }
+  },
+  {
+    "name": "large_in_list_test",
+    "category": "adversarial",
+    "query": {
+      "from": "events",
+      "select": [
+        "advertiser_id",
+        {"COUNT": "*", "as": "event_count"}
+      ],
+      "where": [
+        {"col": "advertiser_id", "op": "in", "val": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]}
+      ],
+      "group_by": ["advertiser_id"],
+      "order_by": [{"col": "event_count", "dir": "desc"}]
+    }
+  },
+  {
+    "name": "order_by_aggregate",
+    "category": "complex_ordering",
+    "query": {
+      "from": "events",
+      "select": [
+        "publisher_id",
+        {"AVG": "bid_price", "as": "avg_bid"},
+        {"MAX": "bid_price", "as": "max_bid"},
+        {"COUNT": "*", "as": "bid_count"}
+      ],
+      "where": [{"col": "type", "op": "eq", "val": "impression"}],
+      "group_by": ["publisher_id"],
+      "order_by": [{"col": "avg_bid", "dir": "desc"}],
+      "limit": 20
+    }
+  },
+  {
+    "name": "empty_result_set",
+    "category": "edge_case",
+    "query": {
+      "from": "events",
+      "select": ["day", {"SUM": "bid_price", "as": "revenue"}],
+      "where": [
+        {"col": "type", "op": "eq", "val": "impression"},
+        {"col": "day", "op": "between", "val": ["2026-01-01", "2026-01-07"]}
+      ],
+      "group_by": ["day"]
+    }
+  },
+  {
+    "name": "all_aggregates_test",
+    "category": "comprehensive",
+    "query": {
+      "from": "events",
+      "select": [
+        "type",
+        {"COUNT": "*", "as": "event_count"},
+        {"SUM": "bid_price", "as": "total_bid"},
+        {"AVG": "bid_price", "as": "avg_bid"},
+        {"MIN": "bid_price", "as": "min_bid"},
+        {"MAX": "bid_price", "as": "max_bid"}
+      ],
+      "where": [{"col": "day", "op": "eq", "val": "2024-07-15"}],
+      "group_by": ["type"],
+      "order_by": [{"col": "total_bid", "dir": "desc"}]
+    }
+  },
+  {
+    "name": "minute_breakdown",
+    "category": "high_granularity",
+    "query": {
+      "from": "events",
+      "select": [
+        "minute",
+        {"COUNT": "*", "as": "events_per_minute"}
+      ],
+      "where": [
+        {"col": "day", "op": "eq", "val": "2024-01-01"},
+        {"col": "country", "op": "eq", "val": "US"}
+      ],
+      "group_by": ["minute"],
+      "order_by": [{"col": "events_per_minute", "dir": "desc"}],
+      "limit": 30
+    }
+  }
+]

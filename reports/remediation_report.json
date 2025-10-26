@@ -1,0 +1,43 @@
+{
+  "remediation_summary": {
+    "timestamp": 1761447751.11098,
+    "total_issues_addressed": 3,
+    "successfully_resolved": 1,
+    "resolution_rate": 33.3,
+    "records_affected": 367,
+    "records_quarantined": 0,
+    "records_in_final_dataset": 366
+  },
+  "remediation_details": [
+    {
+      "issue_type": "NULL_KEY_COLUMNS",
+      "success": false,
+      "records_affected": 0,
+      "records_quarantined": 0,
+      "records_repaired": 0,
+      "details": "Error during NULL quarantine: IO Error: Could not write file \".tmp/duckdb_temp_storage-3.tmp\": No space left on device"
+    },
+    {
+      "issue_type": "DATE_FORMAT_REPAIR",
+      "success": true,
+      "records_affected": 367,
+      "records_quarantined": 0,
+      "records_repaired": 366,
+      "details": "Repaired 366 out of 367 date partitions to YYYY-MM-DD format."
+    },
+    {
+      "issue_type": "DATA_CONSTRAINTS",
+      "success": false,
+      "records_affected": 0,
+      "records_quarantined": 0,
+      "records_repaired": 0,
+      "details": "Clean dataset not found. Run NULL quarantine first."
+    }
+  ],
+  "next_steps": [
+    "Investigate failed remediations and resolve underlying issues.",
+    "Complete data cleaning process before rebuilding materialized views.",
+    "Implement data quality checks in the ingestion pipeline to prevent future issues.",
+    "Set up monitoring for data quality metrics and constraint violations."
+  ]
+}

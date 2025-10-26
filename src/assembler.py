@@ -75,6 +75,17 @@ def _order_by_to_sql(ob):
     return "ORDER BY " + ", ".join(f'{o["col"]} {o.get("dir", "asc").upper()}' for o in ob)
 
 
+def _limit_to_sql(limit):
+    """Convert optional limit to SQL LIMIT clause."""
+    if not limit:
+        return ""
+    try:
+        n = int(limit)
+        return f"LIMIT {n}"
+    except Exception:
+        return ""
+
+
 def assemble_sql(q):
     """Assemble a JSON query into a SQL string."""
     return " ".join([
@@ -82,7 +93,8 @@ def assemble_sql(q):
         "FROM", q["from"],
         _where_to_sql(q.get("where")),
         _group_by_to_sql(q.get("group_by")),
-        _order_by_to_sql(q.get("order_by"))
+        _order_by_to_sql(q.get("order_by")),
+        _limit_to_sql(q.get("limit"))
     ]).strip()
 
 

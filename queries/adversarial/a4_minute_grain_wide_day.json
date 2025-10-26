@@ -1,0 +1,7 @@
+{
+  "from": "events",
+  "select": ["minute", {"COUNT": "*"}],
+  "where": [{"col": "day", "op": "eq", "val": "2024-06-15"}],
+  "group_by": ["minute"],
+  "order_by": [{"col": "minute", "dir": "asc"}]
+}

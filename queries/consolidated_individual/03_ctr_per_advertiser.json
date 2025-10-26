@@ -1,0 +1,34 @@
+{
+  "from": "events",
+  "select": [
+    "advertiser_id",
+    {
+      "COUNT": "*",
+      "as": "total_events"
+    },
+    {
+      "SUM": "bid_price",
+      "as": "total_spend"
+    }
+  ],
+  "where": [
+    {
+      "col": "type",
+      "op": "in",
+      "val": [
+        "click",
+        "impression"
+      ]
+    }
+  ],
+  "group_by": [
+    "advertiser_id"
+  ],
+  "order_by": [
+    {
+      "col": "total_events",
+      "dir": "desc"
+    }
+  ],
+  "limit": 15
+}

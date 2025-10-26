@@ -1,0 +1,7 @@
+{
+  "from": "events",
+  "select": ["country", {"COUNT": "*"}],
+  "where": [{"col": "type", "op": "eq", "val": "impression"}],
+  "group_by": ["country"],
+  "order_by": [{"col": "COUNT(*)", "dir": "desc"}]
+}

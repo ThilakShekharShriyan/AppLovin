@@ -1,0 +1,9 @@
+{
+  "from": "events",
+  "select": ["day", {"SUM": "bid_price"}],
+  "where": [
+    {"col": "type", "op": "eq", "val": "impression"},
+    {"col": "day", "op": "between", "val": ["2026-01-01", "2026-01-07"]}
+  ],
+  "group_by": ["day"]
+}

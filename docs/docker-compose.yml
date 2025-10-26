@@ -43,7 +43,7 @@ services:
     image: applovin-engine:latest
     volumes:
       - ./data:/data
-    entrypoint: ["python", "/app/prepare.py"]
+    entrypoint: ["python", "/app/prepare_fast.py"]
     command: >
       --raw /data/raw
       --lake /data/lake
@@ -68,6 +68,21 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
 
+  # Build all MVs from existing lake (no raw CSV needed)
+  prepare-mvs:
+    build: .
+    image: applovin-engine:latest
+    volumes:
+      - ./data:/data
+    entrypoint: ["python", "/app/prepare_mvs_only.py"]
+    command: >
+      --lake /data/lake
+      --mvs /data/mvs
+      --threads 4
+      --mem 6GB
+    environment:
+      - PYTHONUNBUFFERED=1
+
   # Baseline runner (no MVs)
   baseline:
     build: .
@@ -81,5 +96,21 @@ services:
       --out-dir /data/outputs/baseline
       --queries /queries/examples
       --mode lake
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  # Benchmark comparison
+  benchmark:
+    build: .
+    image: applovin-engine:latest
+    volumes:
+      - ./data:/data
+      - ./queries:/queries
+    entrypoint: ["python", "/app/benchmark_comparison.py"]
+    command: >
+      --lake /data/lake
+      --mvs /data/mvs
+      --queries /queries/examples
+      --out /data/outputs/benchmark
     environment:
       - PYTHONUNBUFFERED=1

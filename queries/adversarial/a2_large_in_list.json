@@ -1,0 +1,9 @@
+{
+  "from": "events",
+  "select": ["country", {"COUNT": "*"}],
+  "where": [
+    {"col": "type", "op": "eq", "val": "impression"},
+    {"col": "country", "op": "in", "val": ["US","JP","DE","FR","GB","CA","IN","BR","AU","MX"]}
+  ],
+  "group_by": ["country"]
+}

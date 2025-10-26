@@ -1,0 +1,11 @@
+{
+  "from": "events",
+  "select": ["advertiser_id", {"SUM": "total_price"}],
+  "where": [
+    {"col": "type", "op": "eq", "val": "purchase"},
+    {"col": "country", "op": "eq", "val": "US"},
+    {"col": "day", "op": "between", "val": ["2024-10-01", "2024-12-30"]}
+  ],
+  "group_by": ["advertiser_id"],
+  "order_by": [{"col": "SUM(total_price)", "dir": "desc"}]
+}

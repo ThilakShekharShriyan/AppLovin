@@ -1,0 +1,10 @@
+{
+  "from": "events",
+  "select": ["day", {"SUM": "total_price"}],
+  "where": [
+    {"col": "type", "op": "eq", "val": "purchase"},
+    {"col": "country", "op": "in", "val": ["DE", "FR"]}
+  ],
+  "group_by": ["day"],
+  "order_by": [{"col": "day", "dir": "asc"}]
+}

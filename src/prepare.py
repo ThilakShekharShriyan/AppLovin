@@ -62,6 +62,80 @@ TO '{lake}/events'
  COMPRESSION ZSTD, ROW_GROUP_SIZE 268435456);
 """
 
+
+def build_mv_family(con, lake: str, mvs: str, max_rows: int = 50_000_000, include_user: bool = True):
+    """Build WIDE MV family: (grain x 1 dimension x country) with unified columns.
+    Emits tables named mv_{grain}_{dim}_wide with columns:
+      - sum_bid_impr, sum_total_pur, cnt_total_pur, events_all
+    Guard with approximate cap: distinct(dim) * buckets(grain) <= max_rows.
+    """
+    print("[prepare] Building WIDE MV family (grain x 1D x country)...")
+
+    # Estimate distincts per dimension
+    dims = ["advertiser_id", "publisher_id", "country", "type"] + (["user_id"] if include_user else [])
+    stats = {}
+    for dim in dims:
+        df = con.execute(
+            f"SELECT COUNT(DISTINCT {dim}) AS n FROM read_parquet('{lake}/events/day=*/**/*.parquet')"
+        ).df()
+        stats[dim] = int(df.iloc[0]["n"]) if not df.empty else 0
+
+    # Estimate time buckets
+    rng = con.execute(
+        f"SELECT MIN(day) AS min_day, MAX(day) AS max_day FROM read_parquet('{lake}/events/day=*/**/*.parquet')"
+    ).df()
+    if rng.empty or rng.iloc[0]["min_day"] is None or rng.iloc[0]["max_day"] is None:
+        print("[prepare] No data range found for MV family; skipping.")
+        return
+    min_day = rng.iloc[0]["min_day"]
+    max_day = rng.iloc[0]["max_day"]
+    n_days = (max_day - min_day).days + 1
+    n_weeks = max(1, n_days // 7)
+    n_hours = n_days * 24
+
+    grains = [
+        ("day", n_days, "day"),
+        ("week", n_weeks, "week"),
+        ("hour", n_hours, "hour"),
+    ]
+
+    def allowed(dim: str, buckets: int) -> bool:
+        return stats.get(dim, 0) * buckets <= max_rows
+
+    built = []
+
+    def emit_wide(grain: str, dim: str):
+        mv = f"mv_{grain}_{dim}_wide"
+        con.execute(f"""
+        CREATE OR REPLACE TABLE {mv} AS
+        SELECT {grain}, {dim}, country,
+               SUM(CASE WHEN type='impression' THEN COALESCE(bid_price, 0) ELSE 0 END) AS sum_bid_impr,
+               SUM(CASE WHEN type='purchase' THEN COALESCE(total_price, 0) ELSE 0 END) AS sum_total_pur,
+               COUNT(*) FILTER (WHERE type='purchase' AND total_price IS NOT NULL) AS cnt_total_pur,
+               COUNT(*) AS events_all
+        FROM read_parquet('{lake}/events/day=*/**/*.parquet')
+        GROUP BY {grain}, {dim}, country;
+        """)
+        con.execute(f"""
+        COPY (SELECT * FROM {mv})
+        TO '{mvs}/{mv}'
+        (FORMAT PARQUET, PARTITION_BY ({grain}), COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE);
+        """)
+        built.append(mv)
+
+    for grain, buckets, _ in grains:
+        for dim in dims:
+            if allowed(dim, buckets):
+                emit_wide(grain, dim)
+            else:
+                print(f"[prepare] Skip mv_{grain}_{dim}_wide: est rows {stats.get(dim,0)*buckets:,} > cap {max_rows:,}")
+
+    print("[prepare] WIDE MV family built:")
+    for name in built[:10]:
+        print(f"  ✓ {name}")
+    if len(built) > 10:
+        print(f"  ... and {len(built)-10} more")
+
 # Optional: apps_dim if it exists
 APPS_DIM = """
 CREATE OR REPLACE TABLE apps_dim AS
@@ -127,16 +201,16 @@ def build_rollups(con, lake, mvs):
     """)
 
     # MV 4: Events per advertiser per type (all time)
-    print("  [4/8] mv_adv_type_counts")
+    print("  [4/8] mv_all_adv_type_counts")
     con.execute(f"""
-    CREATE OR REPLACE TABLE mv_adv_type_counts AS
-    SELECT advertiser_id, type, COUNT(*) AS n
+    CREATE OR REPLACE TABLE mv_all_adv_type_counts AS
+    SELECT advertiser_id, type, COUNT(*) AS cnt
     FROM read_parquet('{lake}/events/day=*/**/*.parquet')
     GROUP BY advertiser_id, type;
     """)
     con.execute(f"""
-    COPY (SELECT * FROM mv_adv_type_counts)
-    TO '{mvs}/mv_adv_type_counts'
+    COPY (SELECT * FROM mv_all_adv_type_counts)
+    TO '{mvs}/mv_all_adv_type_counts'
     (FORMAT PARQUET, PARTITION_BY (type), COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE);
     """)
 
@@ -254,6 +328,15 @@ def main():
     
     print(f"[prepare] Writing Parquet lake to {args.lake}")
     con.execute(PARQUET_OUT.format(lake=args.lake))
+
+    # Write day manifest for pruning
+    try:
+        from manifest import write_manifest
+        mf = write_manifest(args.lake)
+        if mf:
+            print(f"[prepare] Wrote manifest: {mf}")
+    except Exception as e:
+        print(f"[prepare] Warning: manifest write failed: {e}")
     
     # Optional: apps_dim
     apps_dim_path = Path(args.raw) / "apps_dim.csv"
@@ -272,6 +355,12 @@ def main():
             con.execute(f"ANALYZE {t};")
         except duckdb.Error:
             pass
+
+    # Optional: generalized MV family (grain x 1D) with guardrails
+    try:
+        build_mv_family(con, args.lake, args.mvs, max_rows=80_000_000, include_user=True)
+    except Exception as e:
+        print(f"[prepare] Warning: MV family build skipped due to: {e}")
 
     print(f"\n✓ Prepared Parquet lake: {args.lake}")
     print(f"✓ Materialized rollups: {args.mvs}")

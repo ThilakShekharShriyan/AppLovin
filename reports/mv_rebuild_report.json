@@ -1,0 +1,71 @@
+{
+  "rebuild_summary": {
+    "timestamp": 1761448298.670484,
+    "total_mvs": 5,
+    "successful_rebuilds": 5,
+    "failed_rebuilds": 0,
+    "success_rate": 100.0,
+    "total_records": 1219891,
+    "total_duration_sec": 325.29,
+    "avg_rebuild_time_sec": 65.06
+  },
+  "mv_details": [
+    {
+      "mv_name": "mv_all_adv_type_counts",
+      "success": true,
+      "record_count": 6616,
+      "duration_sec": 55.15,
+      "output_path": "data/mvs_rebuilt/mv_all_adv_type_counts",
+      "format": "single_file",
+      "details": "Successfully rebuilt with 6,616 records in 55.2s"
+    },
+    {
+      "mv_name": "mv_day_advertiser_id_wide",
+      "success": true,
+      "record_count": 603715,
+      "duration_sec": 44.27,
+      "output_path": "data/mvs_rebuilt/mv_day_advertiser_id_wide",
+      "format": "partitioned",
+      "details": "Successfully rebuilt with 603,715 records in 44.3s"
+    },
+    {
+      "mv_name": "mv_day_country_wide",
+      "success": true,
+      "record_count": 4383,
+      "duration_sec": 68.82,
+      "output_path": "data/mvs_rebuilt/mv_day_country_wide",
+      "format": "partitioned",
+      "details": "Successfully rebuilt with 4,383 records in 68.8s"
+    },
+    {
+      "mv_name": "mv_day_type_wide",
+      "success": true,
+      "record_count": 1462,
+      "duration_sec": 84.06,
+      "output_path": "data/mvs_rebuilt/mv_day_type_wide",
+      "format": "partitioned",
+      "details": "Successfully rebuilt with 1,462 records in 84.1s"
+    },
+    {
+      "mv_name": "mv_hour_advertiser_id_wide",
+      "success": true,
+      "record_count": 603715,
+      "duration_sec": 72.99,
+      "output_path": "data/mvs_rebuilt/mv_hour_advertiser_id_wide",
+      "format": "partitioned",
+      "details": "Successfully rebuilt with 603,715 records in 73.0s"
+    }
+  ],
+  "data_source": {
+    "lake_path": "data/lake",
+    "mv_output_path": "data/mvs_rebuilt",
+    "data_quality": "Clean (post-remediation)",
+    "partition_format": "Normalized YYYY-MM-DD"
+  },
+  "next_steps": [
+    "Run MV integrity checker to validate consistency",
+    "Update query router to use rebuilt materialized views",
+    "Monitor MV freshness and performance",
+    "Set up automated MV refresh pipeline"
+  ]
+}

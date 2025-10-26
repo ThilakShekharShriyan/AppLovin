@@ -1,0 +1,10 @@
+{
+  "from": "events",
+  "select": ["day", "hour", {"COUNT": "*"}],
+  "where": [
+    {"col": "day", "op": "eq", "val": "2024-12-20"},
+    {"col": "hour", "op": "between", "val": [23, 23]}
+  ],
+  "group_by": ["day", "hour"],
+  "order_by": [{"col": "hour", "dir": "asc"}]
+}

@@ -1,83 +1,112 @@
 #!/usr/bin/env python3
 """
-JSON query planner - determines the best MV to use for a given query.
+MV-first query planner - eagerly routes to wide MVs for maximum speedup.
 """
-from typing import Optional, Tuple, Dict, Any, List, Set
+from typing import Tuple, Dict, Any
 
 
-def _has_agg(select, func, col=None):
-    """Check if select list contains a specific aggregate function."""
-    for item in select:
-        if isinstance(item, dict):
-            for k, v in item.items():
-                if k.upper() == func.upper() and (col is None or v == col):
-                    return True
-    return False
-
-
-def _eq_val(where, col):
-    """Extract the value from an equality filter on a column."""
-    for c in where or []:
-        if c["col"] == col and c["op"] == "eq":
-            return c["val"]
+def _grain(q):
+    """Extract time grain from query columns."""
+    cols = set(q.get("group_by", [])) | {c for c in q.get("select", []) if isinstance(c, str)}
+    if "minute" in cols: return "minute"
+    if "hour" in cols: return "hour" 
+    if "day" in cols: return "day"
+    if "week" in cols: return "week"
     return None
 
 
-def _has_between(where, col):
-    """Check if where clause has a between filter on a column."""
-    for c in where or []:
-        if c["col"] == col and c["op"] == "between":
-            return True
-    return False
+def _type_eq(wh, val):
+    """Check if WHERE clause has type='val'."""
+    return any(c["col"]=="type" and c["op"]=="eq" and c["val"]==val for c in (wh or []))
 
 
-def _has_eq(where, col):
-    """Check if where clause has an equality filter on a column."""
-    for c in where or []:
-        if c["col"] == col and c["op"] == "eq":
-            return True
-    return False
+def _dims(gb):
+    """Extract valid dimensions from group_by."""
+    return [c for c in gb if c in ("advertiser_id", "publisher_id", "country", "type", "user_id")]
 
 
 def choose_plan(q: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
-    """
-    Return (table_name, projection) where projection tells runner how to build SQL.
+    """Choose execution plan - MV-first strategy for maximum speedup."""
+    sel, gb, wh = q.get("select", []), q.get("group_by", []), q.get("where", [])
+    grain = _grain(q)
+    dims = _dims(gb)
     
-    Projection contains:
-      - keep_where: list of column names whose filters should be preserved
-    """
-    sel = q.get("select", [])
-    gb = set(q.get("group_by", []))
-    wh = q.get("where", [])
-
-    # Pattern 1: Daily revenue from impressions
-    # SELECT day, SUM(bid_price) FROM events WHERE type='impression' GROUP BY day
-    if gb == {"day"} and _has_agg(sel, "SUM", "bid_price") and _eq_val(wh, "type") == "impression":
-        return ("mv_day_impr_revenue", {"keep_where": ["day"]})
-
-    # Pattern 2: Publisher revenue in country/day (impressions)
-    # SELECT publisher_id, SUM(bid_price) FROM events WHERE type='impression' AND country='US' AND day BETWEEN ... GROUP BY publisher_id
-    if gb == {"publisher_id"} and _has_agg(sel, "SUM", "bid_price") and _eq_val(wh, "type") == "impression":
-        if (_has_eq(wh, "country") and (_has_between(wh, "day") or _has_eq(wh, "day"))):
-            return ("mv_day_country_publisher_impr", {"keep_where": ["day", "country"]})
-
-    # Pattern 3: Average purchase by country (all time)
-    # SELECT country, AVG(total_price) FROM events WHERE type='purchase' GROUP BY country
-    if gb == {"country"} and _has_agg(sel, "AVG", "total_price") and _eq_val(wh, "type") == "purchase":
-        return ("mv_country_purchase_avg", {"keep_where": []})  # MV already filtered to purchase
-
-    # Pattern 4: Event counts per advertiser per type (all time)
-    # SELECT advertiser_id, type, COUNT(*) FROM events GROUP BY advertiser_id, type
-    if gb == {"advertiser_id", "type"} and _has_agg(sel, "COUNT"):
-        return ("mv_adv_type_counts", {"keep_where": []})
-
-    # Pattern 5: Minute breakdown on a day (impressions)
-    # SELECT minute, SUM(bid_price) FROM events WHERE type='impression' AND day='2025-01-15' GROUP BY minute
-    if gb == {"minute"} and _has_agg(sel, "SUM", "bid_price") and _eq_val(wh, "type") == "impression" and _has_eq(wh, "day"):
-        return ("mv_day_minute_impr", {"keep_where": ["day"]})
-
-    # Fallback: full scan on events view
-    return ("events_v", {"keep_where": ["day", "country", "type", "publisher_id", "advertiser_id", "minute", "hour", "week"]})
+    # Known 2-D MVs: check FIRST (more specific than 1D)
+    
+    # All-time counts per advertiser × type (q4 bottleneck fix)
+    if set(gb) == {"advertiser_id", "type"} and any(
+        isinstance(x, dict) and next(iter(x)).upper() == "COUNT" for x in sel
+    ) and not wh:  # No filters - all-time counts
+        return ("mv_all_adv_type_counts", {"measure": "count_all", "keep_where": []})
+    
+    # Publisher by country (2D with filters)
+    if set(gb) == {"publisher_id"} and any(c["col"]=="country" for c in wh) and _type_eq(wh, "impression"):
+        return ("mv_day_country_publisher_impr", {"measure": "impr", "keep_where": ["day", "country"]})
+    
+    # Minute grain: only if day is fixed (avoid huge scans)
+    if grain == "minute":
+        if any(c["col"]=="day" and c["op"]=="eq" for c in wh) and _type_eq(wh, "impression"):
+            return ("mv_day_minute_impr", {"keep_where": ["day"]})
+        return ("events_v", {"keep_where": ["day", "country", "type", "publisher_id", "advertiser_id", "user_id"]})
+    
+    # Single-dimension wide MVs (the big win - covers most queries)
+    if grain in ("day", "hour", "week") and len(dims) == 1:
+        dim = dims[0]
+        
+        # Impression revenue → sum_bid_impr from wide MV
+        if any(isinstance(x, dict) and next(iter(x)).upper()=="SUM" and x[next(iter(x))]=="bid_price" for x in sel) and _type_eq(wh, "impression"):
+            return (f"mv_{grain}_{dim}_wide", {"measure": "impr", "keep_where": [grain, dim, "country"]})
+            
+        # Purchase avg → sum_total_pur / cnt_total_pur from wide MV  
+        if any(isinstance(x, dict) and next(iter(x)).upper()=="AVG" and x[next(iter(x))]=="total_price" for x in sel) and _type_eq(wh, "purchase"):
+            return (f"mv_{grain}_{dim}_wide", {"measure": "purchase", "keep_where": [grain, dim, "country"]})
+            
+        # Count queries → events_all from wide MV
+        if any(isinstance(x, dict) and next(iter(x)).upper()=="COUNT" for x in sel):
+            return (f"mv_{grain}_{dim}_wide", {"measure": "count", "keep_where": [grain, dim, "country"]})
+    
+    # Pure grain queries (day/hour/week aggregations without other dimensions)
+    if grain in ("day", "hour", "week") and len(dims) == 0:
+        # Use type as the dimension since all queries have type filters
+        # Impression revenue by day/hour/week
+        if any(isinstance(x, dict) and next(iter(x)).upper()=="SUM" and x[next(iter(x))]=="bid_price" for x in sel) and _type_eq(wh, "impression"):
+            return (f"mv_{grain}_type_wide", {"measure": "impr", "keep_where": [grain, "type"]})
+    
+    # Pure dimension queries (no time grain)
+    if grain is None and len(dims) == 1:
+        dim = dims[0]
+        
+        # Check for MIN/MAX aggregates - wide MVs don't support these
+        has_min_max = any(isinstance(x, dict) and next(iter(x)).upper() in ["MIN", "MAX"] for x in sel)
+        if has_min_max:
+            return ("events_v", {"keep_where": ["day", dim, "type"]})
+        
+        # Default to day grain for pure dimension queries
+        # Impression revenue by publisher/advertiser/country  
+        if any(isinstance(x, dict) and next(iter(x)).upper()=="SUM" and x[next(iter(x))]=="bid_price" for x in sel) and _type_eq(wh, "impression"):
+            return (f"mv_day_{dim}_wide", {"measure": "impr", "keep_where": ["day", dim, "country"]})
+        # Purchase revenue by dimension (SUM total_price) - must have purchase type filter
+        if any(isinstance(x, dict) and next(iter(x)).upper()=="SUM" and x[next(iter(x))]=="total_price" for x in sel) and _type_eq(wh, "purchase"):
+            return (f"mv_day_{dim}_wide", {"measure": "purchase", "keep_where": ["day", dim]})
+        # Cross-type queries (e.g., SUM total_price with impression filter) - fallback to events_v
+        if any(isinstance(x, dict) and next(iter(x)).upper()=="SUM" and x[next(iter(x))]=="total_price" for x in sel) and _type_eq(wh, "impression"):
+            return ("events_v", {"keep_where": ["day", dim, "type"]})
+        # Purchase avg by country (use day grain for partitioning)
+        if any(isinstance(x, dict) and next(iter(x)).upper()=="AVG" and x[next(iter(x))]=="total_price" for x in sel) and _type_eq(wh, "purchase"):
+            return (f"mv_day_{dim}_wide", {"measure": "purchase", "keep_where": ["day", dim]})
+        # Count by advertiser/publisher/country  
+        if any(isinstance(x, dict) and next(iter(x)).upper()=="COUNT" for x in sel):
+            return (f"mv_day_{dim}_wide", {"measure": "count", "keep_where": ["day", dim]})
+    
+    # Two-dimension queries: most need full scan since wide MVs only have 1 dimension each
+    if grain is None and len(dims) == 2:
+        # advertiser_id + type → no single wide MV has both, use events_v
+        if "advertiser_id" in dims and "type" in dims:
+            if any(isinstance(x, dict) and next(iter(x)).upper()=="COUNT" for x in sel):
+                return ("events_v", {"keep_where": ["day", "advertiser_id", "type"]})
+    
+    # Fallback to partition-aware events_v
+    return ("events_v", {"keep_where": ["day", "hour", "week", "minute", "type", "country", "publisher_id", "advertiser_id", "user_id"]})
 
 
 if __name__ == "__main__":

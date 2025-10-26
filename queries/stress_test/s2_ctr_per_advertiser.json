@@ -1,0 +1,7 @@
+{
+  "from": "events",
+  "select": ["advertiser_id", {"COUNT": "*"}],
+  "where": [{"col": "type", "op": "in", "val": ["click", "impression"]}],
+  "group_by": ["advertiser_id"],
+  "order_by": [{"col": "COUNT(*)", "dir": "desc"}]
+}

@@ -1,0 +1,7 @@
+{
+  "from": "events",
+  "select": ["publisher_id", "week", {"AVG": "bid_price"}],
+  "where": [{"col": "type", "op": "eq", "val": "impression"}],
+  "group_by": ["publisher_id", "week"],
+  "order_by": [{"col": "AVG(bid_price)", "dir": "desc"}]
+}

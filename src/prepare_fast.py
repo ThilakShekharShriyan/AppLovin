@@ -7,6 +7,75 @@ import duckdb
 from pathlib import Path
 
 
+def build_mv_family_wide(con, lake, mvs, max_rows=80_000_000, include_user=True):
+    """Build general MV family (time grain × 1 dimension) using filtered aggregates."""
+    # Estimate cardinalities for size planning
+    stats = {}
+    dims = ["advertiser_id", "publisher_id", "country", "type"] + (["user_id"] if include_user else [])
+    
+    print("[mv] Estimating cardinalities...")
+    for d in dims:
+        try:
+            n = con.execute(f"SELECT COUNT(DISTINCT {d}) FROM read_parquet('{lake}/events/day=*/**/*.parquet')").fetchone()[0]
+            stats[d] = int(n)
+        except Exception:
+            stats[d] = 1000000  # Conservative fallback
+    
+    # Get time range for bucket estimation
+    try:
+        mn, mx = con.execute(f"SELECT MIN(day), MAX(day) FROM read_parquet('{lake}/events/day=*/**/*.parquet')").fetchone()
+        n_days = (mx - mn).days + 1 if mn and mx else 365
+        n_hours = n_days * 24
+        n_weeks = (mx - mn).days // 7 + 1 if mn and mx else 52
+    except Exception:
+        n_days, n_hours, n_weeks = 365, 8760, 52
+    
+    grains = [
+        ("day", n_days, "day"),
+        ("hour", n_hours, "hour"), 
+        ("week", n_weeks, "week")
+    ]
+    
+    def ok(dim, buckets): 
+        return stats[dim] * buckets <= max_rows
+    
+    built = []
+    for grain, buckets, time_col in grains:
+        for dim in dims:
+            if not ok(dim, buckets):
+                print(f"[skip] mv_{grain}_{dim}_wide (est {stats[dim]*buckets:,} rows > cap)")
+                continue
+                
+            mv = f"mv_{grain}_{dim}_wide"
+            print(f"[building] {mv} (est {stats[dim]*buckets:,} rows)")
+            
+            # Include country as an additional dimension to support country filtering
+            select_cols = (
+                f"{time_col} AS {grain}, {dim}, country, " if dim != "country" else f"{time_col} AS {grain}, country, "
+            )
+            group_cols = (f"{grain}, {dim}, country" if dim != "country" else f"{grain}, country")
+            
+            sql = f"""
+                COPY (
+                  SELECT {select_cols}
+                         -- Filtered aggregates (one wide row supports many query types)
+                         SUM(bid_price) FILTER (WHERE type='impression') AS sum_bid_impr,
+                         SUM(total_price) FILTER (WHERE type='purchase') AS sum_total_pur,
+                         COUNT(*) FILTER (WHERE type='purchase' AND total_price IS NOT NULL) AS cnt_total_pur,
+                         COUNT(*) AS events_all
+                  FROM read_parquet('{lake}/events/day=*/**/*.parquet')
+                  GROUP BY {group_cols}
+                )
+                TO '{mvs}/{mv}'
+                (FORMAT PARQUET, PARTITION_BY ({grain}), COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE);
+            """
+            con.execute(sql)
+            built.append(mv)
+    
+    print(f"[mv] Built wide MVs: {', '.join(built)}")
+    return built
+
+
 def main():
     ap = argparse.ArgumentParser(description="Fast streaming Parquet lake preparation")
     ap.add_argument("--raw", required=True, help="Path to raw CSV files")
@@ -50,63 +119,24 @@ def main():
         (FORMAT PARQUET, PARTITION_BY (day), COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE, ROW_GROUP_SIZE 268435456);
     """)
 
-    print("[prepare] Building materialized views from Parquet lake...")
+    print("[prepare] Building wide MV family with filtered aggregates...")
+    build_mv_family_wide(con, args.lake, args.mvs, max_rows=80_000_000, include_user=True)
     
-    # MV 1: Daily impression revenue
-    print("  [1/5] mv_day_impr_revenue")
+    # Keep specific 2-D MV for publisher+country queries
+    print("[prepare] Building specific 2D MVs...")
     con.execute(f"""
         COPY (
-          SELECT day, SUM(bid_price) AS sum_bid, COUNT(*) AS events
+          SELECT day, country, publisher_id,
+                 SUM(bid_price) FILTER (WHERE type='impression') AS sum_bid_impr,
+                 COUNT(*) FILTER (WHERE type='impression') AS cnt_impr
           FROM read_parquet('{args.lake}/events/day=*/**/*.parquet')
-          WHERE type='impression'
-          GROUP BY day
-        )
-        TO '{args.mvs}/mv_day_impr_revenue'
-        (FORMAT PARQUET, PARTITION_BY (day), COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE);
-    """)
-
-    # MV 2: Publisher revenue by country/day  
-    print("  [2/5] mv_day_country_publisher_impr")
-    con.execute(f"""
-        COPY (
-          SELECT day, country, publisher_id, SUM(bid_price) AS sum_bid, COUNT(*) AS events
-          FROM read_parquet('{args.lake}/events/day=*/**/*.parquet')
-          WHERE type='impression'
           GROUP BY ALL
         )
         TO '{args.mvs}/mv_day_country_publisher_impr'
         (FORMAT PARQUET, PARTITION_BY (day), COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE);
     """)
-
-    # MV 3: Average purchase by country
-    print("  [3/5] mv_country_purchase_avg")
-    con.execute(f"""
-        COPY (
-          SELECT country,
-                 AVG(total_price) AS avg_total,
-                 SUM(CASE WHEN total_price IS NOT NULL THEN 1 ELSE 0 END) AS n
-          FROM read_parquet('{args.lake}/events/day=*/**/*.parquet')
-          WHERE type='purchase'
-          GROUP BY country
-        )
-        TO '{args.mvs}/mv_country_purchase_avg'
-        (FORMAT PARQUET, COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE);
-    """)
-
-    # MV 4: Advertiser type counts
-    print("  [4/5] mv_adv_type_counts")
-    con.execute(f"""
-        COPY (
-          SELECT advertiser_id, type, COUNT(*) AS n
-          FROM read_parquet('{args.lake}/events/day=*/**/*.parquet')
-          GROUP BY advertiser_id, type
-        )
-        TO '{args.mvs}/mv_adv_type_counts'
-        (FORMAT PARQUET, COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE);
-    """)
-
-    # MV 5: Minute-level impression spend
-    print("  [5/5] mv_day_minute_impr")
+    
+    # Keep minute-level for high-precision queries
     con.execute(f"""
         COPY (
           SELECT day, minute, SUM(bid_price) AS sum_bid, COUNT(*) AS events
@@ -116,6 +146,20 @@ def main():
         )
         TO '{args.mvs}/mv_day_minute_impr'
         (FORMAT PARQUET, PARTITION_BY (day), COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE);
+    """)
+    
+    # Add tiny 2D MV for advertiser×type counts (eliminates q4 bottleneck)
+    print("[prepare] Building all-time advertiser×type counts MV...")
+    con.execute(f"""
+        CREATE OR REPLACE TABLE mv_all_adv_type_counts AS
+        SELECT advertiser_id, type, COUNT(*) AS cnt
+        FROM read_parquet('{args.lake}/events/day=*/**/*.parquet')
+        GROUP BY advertiser_id, type;
+    """)
+    con.execute(f"""
+        COPY (SELECT * FROM mv_all_adv_type_counts)
+        TO '{args.mvs}/mv_all_adv_type_counts'
+        (FORMAT PARQUET, COMPRESSION ZSTD, OVERWRITE_OR_IGNORE TRUE);
     """)
 
     print(f"\n✓ Prepared Parquet lake: {args.lake}")

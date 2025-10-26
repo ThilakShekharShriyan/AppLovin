@@ -1,0 +1,7 @@
+{
+  "from": "events",
+  "select": ["advertiser_id", {"COUNT": "*", "as": "event_count"}, {"SUM": "total_price"}],
+  "group_by": ["advertiser_id"],
+  "order_by": [{"col": "event_count", "dir": "desc"}],
+  "limit": 5
+}

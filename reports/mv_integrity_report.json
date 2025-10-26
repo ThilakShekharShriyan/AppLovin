@@ -1,0 +1,62 @@
+{
+  "integrity_check": {
+    "timestamp": 1761448373.200041,
+    "total_mvs": 4,
+    "healthy_mvs": 0,
+    "stale_mvs": 0,
+    "error_mvs": 4,
+    "health_rate": 0.0
+  },
+  "mv_status": {
+    "mv_day_country_wide": {
+      "status": "ERROR",
+      "total_rows": 0,
+      "checksums": {},
+      "spot_check": {
+        "ok": 0,
+        "mismatched": 0
+      },
+      "error": "Binder Error: Referenced column \"sum_bid_impr\" not found in FROM clause!\nCandidate bindings: \"read_parquet.impressions\"\nLINE 4:                 SUM(sum_bid_impr) AS sum_bid_impr_sum, SUM(sum_total_pur) AS sum_total_pur_sum, SUM(events_all) AS events_all_sum\n            FROM read_parquet('data/mvs_rebuilt/mv_day_country_wide/**/*.parquet')\n            ...\n                            ^"
+    },
+    "mv_day_type_wide": {
+      "status": "ERROR",
+      "total_rows": 0,
+      "checksums": {},
+      "spot_check": {
+        "ok": 0,
+        "mismatched": 0
+      },
+      "error": "Binder Error: Referenced column \"sum_bid_impr\" not found in FROM clause!\nCandidate bindings: \"read_parquet.unique_publishers\", \"read_parquet.unique_advertisers\"\nLINE 4:                 SUM(sum_bid_impr) AS sum_bid_impr_sum, SUM(cnt_impr) AS cnt_impr_sum, SUM(events_all) AS events_all_sum\n            FROM read_parquet('data/mvs_rebuilt/mv_day_type_wide/**/*.parquet')\n            ...\n                            ^"
+    },
+    "mv_day_advertiser_id_wide": {
+      "status": "ERROR",
+      "total_rows": 0,
+      "checksums": {},
+      "spot_check": {
+        "ok": 0,
+        "mismatched": 0
+      },
+      "error": "Binder Error: Referenced column \"sum_bid_impr\" not found in FROM clause!\nCandidate bindings: \"read_parquet.impressions\"\nLINE 4:                 SUM(sum_bid_impr) AS sum_bid_impr_sum, SUM(sum_total_pur) AS sum_total_pur_sum, SUM(events_all) AS events_all_sum\n            FROM read_parquet('data/mvs_rebuilt/mv_day_advertiser_id_wide/**/*.parquet')\n            ...\n                            ^"
+    },
+    "mv_all_adv_type_counts": {
+      "status": "ERROR",
+      "total_rows": 0,
+      "checksums": {},
+      "spot_check": {
+        "ok": 0,
+        "mismatched": 0
+      },
+      "error": "Binder Error: Referenced column \"cnt\" not found in FROM clause!\nCandidate bindings: \"read_parquet.active_days\"\nLINE 4:                 SUM(cnt) AS cnt_sum\n                            ^"
+    }
+  },
+  "recommendations": [
+    "MV errors detected: mv_day_country_wide, mv_day_type_wide, mv_day_advertiser_id_wide, mv_all_adv_type_counts. Investigate file paths and data consistency."
+  ],
+  "stale_mvs": [],
+  "failed_mvs": [
+    "mv_day_country_wide",
+    "mv_day_type_wide",
+    "mv_day_advertiser_id_wide",
+    "mv_all_adv_type_counts"
+  ]
+}

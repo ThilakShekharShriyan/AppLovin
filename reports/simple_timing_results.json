@@ -1,0 +1,55 @@
+[
+  {
+    "query_name": "01_daily_impression_revenue",
+    "success": true,
+    "execution_time_ms": 17240.8,
+    "table_used": "*.parquet",
+    "row_count": 10,
+    "rows_sample": [
+      [
+        "2024-01-01",
+        447761.1685999999
+      ],
+      [
+        "2024-01-02",
+        442545.4776999996
+      ],
+      [
+        "2024-01-03",
+        455534.9479000004
+      ]
+    ]
+  },
+  {
+    "query_name": "02_revenue_by_country_day",
+    "success": false,
+    "execution_time_ms": 0,
+    "table_used": null,
+    "row_count": 0,
+    "error": "No table worked"
+  },
+  {
+    "query_name": "03_ctr_per_advertiser",
+    "success": false,
+    "execution_time_ms": 0,
+    "table_used": null,
+    "row_count": 0,
+    "error": "No table worked"
+  },
+  {
+    "query_name": "04_top_advertisers_us_q4",
+    "success": false,
+    "execution_time_ms": 0,
+    "table_used": null,
+    "row_count": 0,
+    "error": "No table worked"
+  },
+  {
+    "query_name": "05_avg_purchase_by_country",
+    "success": false,
+    "execution_time_ms": 0,
+    "table_used": null,
+    "row_count": 0,
+    "error": "No table worked"
+  }
+]

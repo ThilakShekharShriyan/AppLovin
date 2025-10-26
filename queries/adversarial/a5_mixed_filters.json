@@ -1,0 +1,11 @@
+{
+  "from": "events",
+  "select": ["country", "day", {"SUM": "total_price"}],
+  "where": [
+    {"col": "type", "op": "eq", "val": "purchase"},
+    {"col": "country", "op": "in", "val": ["US", "CA", "GB"]},
+    {"col": "day", "op": "between", "val": ["2024-12-23", "2024-12-30"]}
+  ],
+  "group_by": ["country", "day"],
+  "order_by": [{"col": "day", "dir": "asc"}]
+}
