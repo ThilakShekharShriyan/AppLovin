@@ -211,6 +211,6 @@ python src/safe_batch_runner.py --lake data/lake --mvs data/mvs_rebuilt --querie
 
 
 Run:
-•  Prepare (fast path): python src/prepare_fast.py --raw data/raw --lake data/lake --mvs data/mvs --threads 4 --mem 10GB
-•  Execute: python src/runner.py --lake data/lake --mvs data/mvs --queries queries/examples --out data/outputs --threads 4 --mem 6GB
-•  Validate: python src/correctness_guardrails.py --lake data/lake --mvs data/mvs --out validation.json
+* Prepare (fast path): python src/prepare_fast.py --raw data/raw --lake data/lake --mvs data/mvs --threads 4 --mem 10GB
+* Execute: python src/runner.py --lake data/lake --mvs data/mvs --queries queries/examples --out data/outputs --threads 4 --mem 6GB
+* Validate: python src/correctness_guardrails.py --lake data/lake --mvs data/mvs --out validation.json
